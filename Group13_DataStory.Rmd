@@ -27,6 +27,7 @@ library(janitor)
 # 2. Importing datasets
 These datasets have been cleaned beforehand.
 ```{r, warning = FALSE}
+unzip("df_dom.csv.zip")
 club_results <- read_csv("df_dom.csv") # Domestic (club) matches around the world
 
 english_club_loss <- read_csv("eng_dom_loss.csv") # Domestic matches where English club loses
