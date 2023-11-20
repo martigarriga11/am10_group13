@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 # 1. Importing libraries
-```{r}
+```{r, warning = FALSE}
 library(gapminder)
 library(readr)
 library(tidyr)
@@ -52,7 +52,7 @@ int_games <- read_csv("int_games.csv") # International (national team) matches
 ```
 
 # 3. Plot on the evolution of FTSE100 Index
-```{r}
+```{r, warning = FALSE}
 ftse100_evolution_plot <- finance_final %>% 
   ggplot() +
   geom_line(aes(x = date, y = open), colour = "darkblue", size = 0.75) +
@@ -72,7 +72,7 @@ ftse100_evolution_plot
   
 # 4. Key dates in English national team history
 And how the stock price reacted to the outcomes the next day.
-```{r}
+```{r, warning = FALSE}
 date_int <- c('2018-07-09', '2021-07-12', '2018-07-11', '2016-06-27', '2012-06-26', '2010-06-29')
 game_int <- c("Advances to World Cup semi-finals", "Loses EuroCup final (hosted in Wembley)", "Eliminated from 2018 WC", "Eliminated from 2016 EuroCup", "Eliminated from 2012 EuroCup", "Frank Lampard's Ghost Goal that led to 2010 WC elimination")
 date_int <- as.Date(date_int)
@@ -108,7 +108,7 @@ int_key_finance_plot
 ```
 
 # 5. Elimination from 2010 WC - Controversial unallowed goal
-```{r}
+```{r, warning = FALSE}
 finance_2010_elimination <- finance_final %>% 
   filter(date > '2010-06-10', date < '2010-07-10')
 
@@ -130,7 +130,7 @@ finance_2010_elimination_month
 ```
 
 # 6. Linear regression model to predict stock movements
-```{r}
+```{r, warning = FALSE}
 england_matches <- int_games %>%
   filter(home_team == 'England' | away_team == 'England')
 
@@ -208,7 +208,7 @@ temp_df_eng %>%
 ```
 
 # 8. Win percentage of the English national team over the years
-```{r}
+```{r, warning = FALSE}
 winning_teams <- int_games %>% 
   distinct(date, home_team, away_team, .keep_all = TRUE) %>%
   group_by(date, home_team, away_team) %>% 
