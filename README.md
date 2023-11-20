@@ -8,4 +8,4 @@ https://www.kaggle.com/datasets/schochastics/domestic-football-results-from-1888
 https://www.kaggle.com/datasets/martj42/international-football-results-from-1872-to-2017 
 https://uk.investing.com/indices/uk-100-historical-data
 
-We will be using linear regression to find how different game results affect the evolution of the stock market during a full season, and logistic regression to predict whether certain results will turn out in a loss or a gain in the aftermath of the game for the stock market. We also want to see the correlation between number of wins in a season/tournament and the performance of the index along that period.
+We will be using linear regression to find how different game results affect the evolution of the stock market during a full season, and analysing the outcomes of key dates in English football history, comparing it with the average daily growth of UK's biggest stock market index.
