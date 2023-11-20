@@ -1,0 +1,255 @@
+---
+title: "Group13_DataStory"
+author: "Marti Garriga Marsans, Yihua Chan, Saumya Srivastava, Thomas Tyteca, Yanjun He, Zongqiang Lian"
+date: "2023-11-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 1. Importing libraries
+```{r}
+library(gapminder)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(showtext)
+library(janitor)
+library(vroom)
+library(ggtext)
+
+font_add_google("Montserrat", "Montserrat")
+font_add_google("Ubuntu", "Ubuntu")
+font_add_google("Oswald", "Oswald")
+font_add_google("Lato", "Lato")
+```
+
+
+# 2. Importing datasets
+These datasets have been cleaned beforehand.
+```{r, warning = FALSE}
+unzip("df_dom.csv.zip")
+club_results <- read_csv("df_dom.csv") # Domestic (club) matches around the world
+
+english_club_loss <- read_csv("eng_dom_loss.csv") # Domestic matches where English club loses
+
+english_club_win <- read_csv("eng_dom_win.csv") # Domestic matches where English club wins
+
+fin_UCL <- read_csv("fin_UCL.csv") # Champions League Matches
+
+finance_final <- read_csv("finance_final.csv") %>% clean_names() # FTSE100 index 2000 - 2023
+
+final_overall <- read_csv("final_overall.csv") %>% 
+  distinct(date, home, away, home_team, away_team, .keep_all = TRUE) # International (national team) matches joined with FTSE100 financial information
+
+int_games <- read_csv("int_games.csv") # International (national team) matches
+```
+
+# 3. Plot on the evolution of FTSE100 Index
+```{r}
+ftse100_evolution_plot <- finance_final %>% 
+  ggplot() +
+  geom_line(aes(x = date, y = open), colour = "darkblue", size = 0.75) +
+  theme_minimal() +
+  labs(title = 
+      "<b>Evolution of the <span style='color:darkblue'>FTSE100 index</span> since 2001</b>",
+      x = NULL,
+      y = NULL) +
+  theme(plot.title = element_textbox_simple(size = 14, colour = "grey15", margin = margin(t = 10, b = 10)),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.ticks.x = element_line(color = "grey15"),
+        text = element_text(size = 12, family = "Montserrat")) +
+  theme(plot.margin = margin(r = 10, l = 10))
+
+ftse100_evolution_plot
+```
+  
+# 4. Key dates in English national team history
+And how the stock price reacted to the outcomes the next day.
+```{r}
+date_int <- c('2018-07-09', '2021-07-12', '2018-07-11', '2016-06-27', '2012-06-26', '2010-06-29')
+game_int <- c("Advances to World Cup semi-finals", "Loses EuroCup final (hosted in Wembley)", "Eliminated from 2018 WC", "Eliminated from 2016 EuroCup", "Eliminated from 2012 EuroCup", "Frank Lampard's Ghost Goal that led to 2010 WC elimination")
+date_int <- as.Date(date_int)
+
+df_int_key <- data.frame(date = date_int, game = game_int)
+
+df_int_key_finance <- df_int_key %>% 
+  left_join(select(finance_final, date, change_percent), by = "date")
+
+avg_daily_change <- data.frame(date = '2023-12-31', game = "Average daily change", change_percent = mean(finance_final$change_percent))
+
+df_int_key_finance <- rbind(df_int_key_finance, avg_daily_change)
+
+int_key_finance_plot <- ggplot(df_int_key_finance, aes(x = reorder(str_wrap(game, width = 10), -change_percent), y = change_percent)) +
+  geom_bar(stat = "identity",
+           fill = ifelse(df_int_key_finance$change_percent > 0, "darkgreen", "tomato")) +
+  geom_text(aes(label = paste0(round(change_percent, 2), "%")),
+            vjust = ifelse(df_int_key_finance$change_percent > 0.5, 1.25, -0.5),
+            colour = ifelse(abs(df_int_key_finance$change_percent) > 0.5, "white", "grey15"),
+            fontface = "bold", size = 5) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        axis.text.y = element_blank(),
+        plot.title = element_text(face = "bold"),
+        text = element_text(family = "Montserrat"),
+        axis.text.x = element_text(face = ifelse(df_int_key_finance$game == "Eliminated from 2018 WC", "bold", "plain"))) +
+  labs(title = "How did the stock market react to these historical matches?",
+       subtitle = "% change in FTSE100 price on the following day",
+       x = NULL,
+       y = NULL)
+
+int_key_finance_plot
+```
+
+# 5. Elimination from 2010 WC - Controversial unallowed goal
+```{r}
+finance_2010_elimination <- finance_final %>% 
+  filter(date > '2010-06-10', date < '2010-07-10')
+
+finance_2010_elimination_month <- ggplot(finance_2010_elimination, aes(x = date)) +
+  geom_line(aes(y = change_percent), colour = "darkblue", size = 1.5) +
+  labs(title = "So, what happened after the game?",
+       subtitle = "Zooming out on Summer 2010...",
+       x = NULL,
+       y = "% Change in FTSE100") +
+  geom_vline(xintercept = as.Date('2010-06-28'), colour = "tomato", linetype = "dashed") +
+  annotate("text", x = as.Date('2010-06-28'), y = 2.5, label = "England kicked out of the World Cup", vjust = -0.5, hjust = 1.05, colour = "tomato", family = "Montserrat") +
+  scale_y_continuous(labels = function(y) paste0(y, "%")) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+        text = element_text(family = "Montserrat"),
+        plot.title = element_text(face = "bold"))
+
+finance_2010_elimination_month
+```
+
+# 6. Linear regression model to predict stock movements
+```{r}
+england_matches <- int_games %>%
+  filter(home_team == 'England' | away_team == 'England')
+
+# Determine the winner of each match
+england_matches <- england_matches %>%
+  mutate(winner = case_when(
+    home_score > away_score & home_team == 'England' | away_score > home_score & away_team == 'England' ~ 'England',
+    home_score == away_score ~ 'Draw',
+    TRUE ~ 'Opponent'
+  ))
+
+# Convert date to Year and filter for 2001 to 2019
+england_matches <- england_matches %>%
+  mutate(year = as.numeric(format(as.Date(date, "%Y-%m-%d"), "%Y"))) %>%
+  filter(year >= 2001, year <= 2019)
+
+finance_final$date <- as.Date(finance_final$date)
+
+# Join the datasets on the date column
+combined_data_england <- left_join(england_matches, finance_final, by = "date") 
+# View the first few rows of the combined dataset
+length(combined_data_england)
+
+combined_data_england$date <- ymd(combined_data_england$date) # ymd stands for "year-month-day"
+# Extracting the day
+combined_data_england$day <- day(combined_data_england$date)
+
+# Extracting the month
+combined_data_england$month <- month(combined_data_england$date)
+
+# Fitting the model
+model <- lm(price~  winner + tournament + month + home_team + away_team, data = combined_data_england)
+
+# Summary of the model
+summary(model)
+```
+
+# 7. Relationship between wins in a period and the average stock price within it
+```{r, warning=FALSE}
+combined_data_england_2 <- combined_data_england %>%
+  mutate(eng_win = ifelse(winner == "England", 1, 0))
+
+temp_df_eng <- combined_data_england_2 %>% 
+  group_by(year,month) %>%
+  filter(eng_win==1, year>2010) %>% 
+  summarise(
+    wins = n(),
+    average_price = mean(price, na.rm = TRUE))
+
+temp_df_eng %>% 
+  filter(wins >= 2.1) %>% 
+  ggplot(aes(x = wins, y = average_price)) +
+  geom_point(color = "dark blue", size = 3) +
+  geom_smooth(method = 'lm', se = FALSE, color = "tomato", linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "English national team wins vs. Average price of FTSE100",
+    subtitle = "An outstanding season from the Three Lions can mean excellent returns for FTSE100",
+    x = "Number of Wins",
+    y = "Average Price"
+  ) +
+  scale_x_continuous(breaks = seq(min(temp_df_eng$wins), max(temp_df_eng$wins), by = 2)) +
+  scale_y_continuous(breaks = seq(5000, 8000, by = 500)) +
+  theme(
+    text = element_text(family = "Montserrat"),  # Set the global font family
+    plot.title = element_text(face = "bold", margin = margin(b = -1, unit = "pt")),
+    plot.subtitle = element_text(hjust = 0, margin = margin(t = 1, unit = "pt")),
+    axis.title.x = element_text(face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    axis.text = element_text(color = "grey15"),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray", linetype = "dotted")
+  )
+```
+
+# 8. Win percentage of the English national team over the years
+```{r}
+winning_teams <- int_games %>% 
+  distinct(date, home_team, away_team, .keep_all = TRUE) %>%
+  group_by(date, home_team, away_team) %>% 
+  summarise(home_score, away_score) %>% 
+  mutate(winning_team = if_else(home_score > away_score, home_team, if_else(home_score < away_score, away_team, "Draw")))
+
+win_percentage <- winning_teams %>% 
+  group_by(year = year(date)) %>% 
+  filter(year > 2000) %>% 
+  summarise(total_games = n(), 
+            total_wins = sum(winning_team == "England"), 
+            win_percentage = (total_wins/total_games)*100) %>% 
+  mutate(average = mean(win_percentage))
+
+win_perc_plot <- win_percentage %>% 
+  ggplot() +
+  geom_line(aes(x = year, y = win_percentage), colour = "darkblue", size = 1) +
+  theme_minimal() +
+  labs(title = 
+      "<b>The Three Lions have <span style='color:tomato'>won over 60% of their games</span> since 2001</b><br>
+      <span style='font-size:12pt;color:darkblue'>Yearly win percentage of the English national team between 2001 and 2023</span>",
+      x = NULL,
+      y = NULL) +
+  theme(plot.title = element_textbox_simple(size = 16, colour = "grey15", margin = margin(t = 10, b = 10)),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.ticks.x = element_line(color = "grey15"),
+        text = element_text(size = 12, family = "Montserrat")) +
+  geom_hline(aes(yintercept = average), linetype = "dotted", color = "tomato", size = 1) +
+  geom_text(data = data.frame(x = 2023, y = 63.5, label = "61.27%"),
+            aes(x = x, y = y, label = label),
+            family="Montserrat",
+            colour = "tomato",
+            size = 4,
+            hjust = 0,
+            lineheight = .8,
+            inherit.aes = FALSE,
+            fontface = "bold") +
+  lims(x = c(2001, 2024)) +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) +
+  theme(plot.margin = margin(r = 10, l = 10))
+
+win_perc_plot
+```
+
+
